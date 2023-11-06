@@ -54,11 +54,15 @@
               <UCheckbox v-model="selected" :value="row" aria-label="Select row" @click.stop />
             </td>
 
-            <td v-for="(column, subIndex) in columns" :key="subIndex" :class="[ui.td.base, ui.td.padding, ui.td.color, ui.td.font, ui.td.size, row[column.key]?.class]">
-              <slot :name="`${column.key}-data`" :column="column" :row="row" :index="index" :get-row-data="(defaultValue) => getRowData(row, column.key, defaultValue)">
-                {{ getRowData(row, column.key) }}
-              </slot>
-            </td>
+            <template v-for="(column, subIndex) in columns" :key="subIndex">
+              <td v-if="!row?.__skip?.includes(column.key)" :colspan="colspan(row, columns, column.key)" :class="[ui.td.base, ui.td.padding, ui.td.color, ui.td.font, ui.td.size, row[column.key]?.class]">
+                <slot v-if="!getRowData(row, column.key)?.colspan"  :name="`${column.key}-data`" :column="column" :row="row" :index="index" :get-row-data="(defaultValue) => getRowData(row, column.key, defaultValue)">
+                  {{ getRowData(row, column.key) }}
+                </slot>
+                <slot v-else :name="`${getRowData(row, column.key)?.colspan?.slot ?? getRowData(row, column.key)?.colspan}-colspan`" :column="column" :row="row" :index="index">
+                </slot>
+              </td>
+            </template>
           </tr>
         </template>
       </tbody>
@@ -271,6 +275,27 @@ export default defineComponent({
       return get(row, rowKey, defaultValue)
     }
 
+    function colspan(row, columns, columnKey) {
+
+      if (row[columnKey]?.colspan && !row.__skip) {
+        row.__skip ??= []
+
+        columns.forEach((column, index) => {
+          if (row[column.key]?.colspan) {
+            const spanCount = row[column.key].colspan?.cols ?? columns.length + (props.modelValue ? 1 : 0) - index;
+            for (let i = 1; i < spanCount; i++) {
+              const nextColumn = columns[index + i];
+              if (nextColumn) {
+                row.__skip.push(nextColumn.key);
+              }
+            }
+          }
+        });
+      }
+
+      return row[columnKey]?.colspan ? row[columnKey].colspan?.cols ?? columns.length + (props.modelValue ? 1 : 0) : null;
+    }
+    
     return {
       // eslint-disable-next-line vue/no-dupe-keys
       ui,
@@ -291,7 +316,8 @@ export default defineComponent({
       onSort,
       onSelect,
       onChange,
-      getRowData
+      getRowData,
+      colspan
     }
   }
 })
